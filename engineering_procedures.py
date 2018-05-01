@@ -24,8 +24,8 @@ import processing
 import plotly.graph_objs as go
 import plotly.offline as plotly
 from plotly.graph_objs import *
-
-
+import json
+import plotly  #needed for plotly.utils.PlotlyJSONEncoder
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS, cross_origin
@@ -623,8 +623,8 @@ def hydraulic_confinement():
             b=0
         ),
         showlegend=False,
-        width=945,
-        height=70,
+        ####width=945,
+        ####height=70,
     )
 
     for yd, xd in zip(y_data, x_data):
@@ -638,17 +638,35 @@ def hydraulic_confinement():
                                 showarrow=False, align='left'))
     layout['annotations'] = annotations
 
-    fig = go.Figure(data=traces, layout=layout)
+    ##fig = go.Figure(data=traces, layout=layout)
 
-    print('completing plotly')
+    print('completed plotly')
 
     #print(fig)
-    print(traces)
+    #print(traces)
+
+
+    plot = [
+        dict(
+            data=[traces],
+            layout=[layout]
+        )
+    ]
+
+    # Convert the figures to JSON
+    #  PlotlyJSONEncoder appropriately converts pandas, datetime, etc
+    #  objects to their JSON equivalents
+    plotJSON = json.dumps(plot, cls=plotly.utils.PlotlyJSONEncoder)
+                
+    print(plotJSON)
+
+    
 
     try:
         #return jsonify(fig)
+        #return traces
         #return jsonify({'entry': 'valid'})  ##ok
-        return traces
+        return(plotJSON)
         
     except:
         pass
