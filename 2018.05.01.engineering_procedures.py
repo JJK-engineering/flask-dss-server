@@ -113,13 +113,16 @@ def hydraulic_confinement():
     # code below is from Jupyter
     ############################
 
-
+    
     # define required input files
     DTM = "data/in/NamAngTopogRaster.tif"  #DEM with surface topography
     Alignment = "data/in/NamAngAlignmentHRT.r1.csv"  #tunnel alignment
     DTM_slope='data/in/NamAngTopogSlopeRaster.tif'  #DEM containing slope angle as attribute
 
-    
+
+    # In[8]:
+
+
     # define required input data
     # mapping
     crs = {'init': 'epsg:32648'}  #define crs for project
@@ -136,6 +139,9 @@ def hydraulic_confinement():
     max_static_water_level = 637.20 #MASL 
 
 
+    # In[9]:
+
+
     # define temporary data
     Alignment_shp ='tmp/NamAngAlignment.shp'  #alignment shp from Alignment
     Alignment_grass_csv = 'tmp/NamAngAlignmentGrass.csv'  #alignment csv fixed for grass
@@ -149,35 +155,59 @@ def hydraulic_confinement():
     Buffer_slope_csv = "tmp/NamAngBufferSlope.csv"
 
 
+    # In[10]:
+
+
     alignment = {
         'Station':["0+000","0+163.81","2+063.77","2+603.58","3+030.73"],
         'Northing':[1673035.25,1673051.68,1672130.47,1671662.07,1671268.20],
         'Easting':[726651.46,726815.60,728479.47,728758.97,728581.38],
         'Elevation':[625.850,625.543,504.226,469.758,464.220]
-        }
+    }
+
+
+    # In[11]:
 
 
     alignment_df = pd.DataFrame(alignment)
     alignment_df = alignment_df[['Station','Northing','Easting','Elevation']]  #for checking
+    ##alignment_df  #checking
 
 
-    # create stationed alignment as Alignment_stationed_shp
+    # In[12]:
+
+
+    # create stationed alignment as Alignment_stationed_shp                 #ToDo JK: make into stationing function
     alignment_df_grass = alignment_df.loc[:,["Easting", "Northing"]]  #x first and y second
     alignment_df_grass.to_csv(Alignment_grass_csv, header=False, index=False)  #no header
     # points to line, write output to Alignment_line_shp
+    print('starting grass7:v.in.lines')
     processing.runalg("grass7:v.in.lines",Alignment_grass_csv,",",False,
                       grass_region,0,Alignment_line_shp)  #no spaces between commas
+    print('completed grass7:v.in.lines')    
     # line to station points, ouput segmented polyline to Alignment_stationed_shp
     processing.runalg("grass7:v.to.points",Alignment_line_shp,grass_station_dist,1,True,
                       grass_region,-1,0.0001,0,Alignment_stationed_shp)  #no spaces between commas
 
 
-    # create alignment_stationed_df from Alignment_stationed_shp
+    # In[13]:
+
+
+    # create alignment_stationed_df from Alignment_stationed_shp            #ToDo JK: make into shp -> df function
     alignment_stationed_df = gpd.read_file(Alignment_stationed_shp)
     # create columns for x_align, y_align, then delete columns cat_ and geometry
     alignment_stationed_df["x_align"] = alignment_stationed_df.geometry.x
     alignment_stationed_df["y_align"] = alignment_stationed_df.geometry.y
     alignment_stationed_df = alignment_stationed_df.drop(columns =["cat_", "geometry"])
+
+
+    # In[14]:
+
+
+    ##alignment_stationed_df  #checking
+
+
+    # In[15]:
 
 
     # add required fields to alignment_stationed_df
@@ -188,8 +218,7 @@ def hydraulic_confinement():
     for n in range(0, len(alignment_stationed_df)-1):
         alignment_stationed_df.iloc[n, alignment_stationed_df.columns.get_loc("distance_stat")] = (
             ((alignment_stationed_df.iloc[n +1]["x_align"] - alignment_stationed_df.iloc[n]["x_align"])**2
-            +(alignment_stationed_df.iloc[n +1]["y_align"] 
-            - alignment_stationed_df.iloc[n]["y_align"])**2 )**(0.5) )
+            +(alignment_stationed_df.iloc[n +1]["y_align"] - alignment_stationed_df.iloc[n]["y_align"])**2 )**(0.5) )
     # add "distance_stat_sum"
     alignment_stationed_df["distance_stat_sum"] = np.nan
     for n in range(0, len(alignment_stationed_df) -1):
@@ -197,7 +226,11 @@ def hydraulic_confinement():
                             "distance_stat"] )
         distances = distance.tolist()
         alignment_stationed_df.iloc[n, alignment_stationed_df.columns.get_loc("distance_stat_sum")] = (
-                                                                                            sum(distances) )
+                                                                                            sum(distances) )    
+    ##alignment_stationed_df  #checking
+
+
+    # In[16]:
 
 
     # add required field "distance_intermed_align" to alignment_df
@@ -206,6 +239,10 @@ def hydraulic_confinement():
         alignment_df.iloc[n, alignment_df.columns.get_loc("distance_intermed_align")] = (
             ((alignment_df.iloc[n +1]["Easting"]-alignment_df.iloc[n]["Easting"])**2 
                  +(alignment_df.iloc[n +1]["Northing"]-alignment_df.iloc[n]["Northing"])**2 )**(0.5) )
+    ##alignment_df  #checking
+
+
+    # In[17]:
 
 
     # join alignment_df to alignment_stationed_df
@@ -218,20 +255,26 @@ def hydraulic_confinement():
             alignment_stationed_df.drop(columns =["Point", "Type", "Northing", "Easting"]) )
     except:
         pass
+    ##alignment_stationed_df  #checking
+
+
+    # In[18]:
 
 
     # get id_points for alignment points in alignment_stationed_df 
     #   select points where Elevation of point not NaN
     id_points_align =  (
-        alignment_stationed_df.loc[(alignment_stationed_df.Elevation.isin(alignment_df["Elevation"])), 
-                                                                                       "id_point"] )
+        alignment_stationed_df.loc[(alignment_stationed_df.Elevation.isin(alignment_df["Elevation"])), "id_point"] )
     id_points_align= id_points_align.tolist()
+
+
+    # In[19]:
 
 
     # prepare intermediated data in alignment_stationed_df required to interpolate alignment elevations
     # fill in "Elevation" and "distance_intermed_align" for points in alignment_stationed_df 
     #   where points of alignment_points_df != alignment_df
-    # why is this needed??    ToDo: JK
+    # why is this needed??                                                                                ToDo: JK
     for n in range(0, len(id_points_align) -1): 
         alignment_stationed_df.loc[(alignment_stationed_df.id_point.isin(range(id_points_align[n] +1, 
                                     id_points_align[n +1]))), "Elevation"] = ( 
@@ -248,9 +291,13 @@ def hydraulic_confinement():
                                                         alignment_stationed_df["distance_stat_sum"] )
     for n in range(1, len(id_points_align) -1):
           alignment_stationed_df.loc[(alignment_stationed_df.id_point.isin(range(id_points_align[n], 
-                            id_points_align[n +1]))), "distance_intermed_stat"] = ( 
-                                    alignment_stationed_df["distance_stat_sum"] - 
-                                    alignment_stationed_df["distance_stat_sum"][id_points_align[n] -1] )
+                                      id_points_align[n +1]))), "distance_intermed_stat"] = ( 
+                                                 alignment_stationed_df["distance_stat_sum"] - 
+                                                 alignment_stationed_df["distance_stat_sum"][id_points_align[n] -1] )
+    ##alignment_stationed_df  #checking
+
+
+    # In[20]:
 
 
     # interpolate alignment elevation ("z_align") at all station points and write to alignment_stationed_df
@@ -272,19 +319,23 @@ def hydraulic_confinement():
             p = id_points_align_plus_point_n[o]  #id_point of previous alignment point
 
             alignment_stationed_df.iloc[i, alignment_stationed_df.columns.get_loc("z_align")] = ( 
-                                                alignment_stationed_df.iloc[p]["Elevation"] 
-                                                +(alignment_stationed_df.iloc[n]["Elevation"] 
-                                                -alignment_stationed_df.iloc[p]["Elevation"]) 
-                                                /alignment_stationed_df.iloc[i]["distance_intermed_align"]
-                                                *alignment_stationed_df.iloc[i-1]["distance_intermed_stat"] )
-            id_points_align_plus_point_n.remove(i)  #needed ??  #ToDo JK
+                                                        alignment_stationed_df.iloc[p]["Elevation"] 
+                                                        +(alignment_stationed_df.iloc[n]["Elevation"] 
+                                                        -alignment_stationed_df.iloc[p]["Elevation"]) 
+                                                            /alignment_stationed_df.iloc[i]["distance_intermed_align"]
+                                                            *alignment_stationed_df.iloc[i-1]["distance_intermed_stat"] )
+            id_points_align_plus_point_n.remove(i)  #needed ??                                           #ToDo JK
     alignment_stationed_df = alignment_stationed_df.drop(columns = ["distance_intermed_align"])
     alignment_stationed_df = alignment_stationed_df.drop(columns = ["distance_intermed_stat"])
     alignment_stationed_df = alignment_stationed_df.drop(columns = ["Elevation"])
+    ##alignment_stationed_df  #checking
+
+
+    # In[21]:
 
 
     # add required field "z_dtm_align" to alignment_stationed_df 
-    # list of shapely geometry points
+    # list of shapely geometry points                                             #ToDo JK: make df -> shp function           
     alignment_stationed_geometry = ( 
         [sp.geometry.Point(row['x_align'], row['y_align']) for key, row in alignment_stationed_df.iterrows()] )
     # create alignment_stationed_geometry_df
@@ -292,7 +343,7 @@ def hydraulic_confinement():
         gpd.GeoDataFrame(alignment_stationed_df, geometry=alignment_stationed_geometry, crs = crs) )
     # write df to Alignment_stationed_shp (overwrite file)
     alignment_stationed_geometry_df.to_file(Alignment_stationed_shp, driver='ESRI Shapefile') 
-    # get DTM values for alignment_points
+    # get DTM values for alignment_points                                     #ToDo JK: make into what.points function
     #   write to Alignment_dtm_csv
     processing.runalg("grass7:r.what.points",DTM,Alignment_stationed_shp, "NA",",", 500,
                       True,False,False,False,False,grass_region,-1,0.0001,Alignment_dtm_csv)
@@ -308,10 +359,18 @@ def hydraulic_confinement():
     # write alignment_dtm_df["z_dtm_align"] to alignment_stationed_df["z_dtm_align"]
     alignment_stationed_df["z_dtm_align"] = alignment_dtm_df["z_dtm_align"]
     alignment_stationed_df = alignment_stationed_df.drop(columns = ["geometry"])
+    ##alignment_stationed_df #checking
+
+
+    # In[22]:
 
 
     # Add require field "h" to alignment_stationed_df = overburden depth above station point 
     alignment_stationed_df["h"] = alignment_stationed_df["z_dtm_align"] - alignment_stationed_df["z_align"] 
+    ##alignment_stationed_df  #checking
+
+
+    # In[23]:
 
 
     # define make_buffer to get buffer grid points at all station points along alignment
@@ -332,11 +391,14 @@ def hydraulic_confinement():
             for j in range(intvls_c):
                 item[0] = (sin((2*pi) / intvls_c *(j+1)) *r) + point[0]
                 item[1] = (cos((2*pi) / intvls_c *(j+1)) *r) + point[1]
-                buffer = np.vstack((buffer, item))
+                buffer = np.vstack((buffer, item))  #vstack works with arrays of diff nr of items, append does not        
         return buffer
 
 
-    # create csv file with all buffer points
+    # In[24]:
+
+
+    # create csv file with all buffer points     #ToDo KLK: make check plot of alignment, station points, buffer_all
     # point = alignment_stationed_xy
     # create alignment_stationed_xy from alignment_stationed_df with x,y of all station points
     alignment_stationed_xy = alignment_stationed_df.as_matrix(columns=['x_align','y_align'])
@@ -345,33 +407,29 @@ def hydraulic_confinement():
     # initialize buffer_df, buffer_all_df, buffer_all
     buffer_all = {}
     buffer_df = pd.DataFrame(columns=["id_point", "x_align", "y_align", "z_align", "h" ,"x_buffer", "y_buffer"])
-    buffer_all_df = pd.DataFrame(columns=["id_point","x_align","y_align","z_align","h","x_buffer","y_buffer"])
+    buffer_all_df = pd.DataFrame(columns=["id_point", "x_align", "y_align", "z_align", "h","x_buffer", "y_buffer"])
     for n in range(0, len(alignment_stationed_df)): 
-        buffer_point = make_buffer(point=alignment_stationed_xy[n], overburden=alignment_stationed_h[n], 
-                                   c=c, res=res)
+        buffer_point = make_buffer(point=alignment_stationed_xy[n], overburden=alignment_stationed_h[n], c=c, res=res)
         buffer_all[n] = buffer_df.copy(deep=False)  #copy of initialized buffer_df
+        #print("n: ", n)
+        #print(buffer_all)
         buffer_all[n]["id_point"] = [n] * len(buffer_point)  #list with len(buffer_point) number of n values) 
         buffer_all[n]["stat_sum"] = (  #make stat_sum correct for point n
-            [alignment_stationed_df.iloc[n-1, alignment_stationed_df.columns.get_loc("distance_stat_sum")]] 
-                                                * len(buffer_point) ) 
+            [alignment_stationed_df.iloc[n-1, alignment_stationed_df.columns.get_loc("distance_stat_sum")]] * len(buffer_point) ) 
         buffer_all[n]["dist_stat"] = (  #make stat_sum correct for point n
-            [alignment_stationed_df.iloc[n-1, alignment_stationed_df.columns.get_loc("distance_stat")]] 
-                                                * len(buffer_point) ) 
+            [alignment_stationed_df.iloc[n-1, alignment_stationed_df.columns.get_loc("distance_stat")]] * len(buffer_point) ) 
         buffer_all[n]["x_align"] = ( 
-            [alignment_stationed_df.iloc[n, alignment_stationed_df.columns.get_loc("x_align")]] 
-                                                * len(buffer_point) )      
+            [alignment_stationed_df.iloc[n, alignment_stationed_df.columns.get_loc("x_align")]] * len(buffer_point) )      
         buffer_all[n]["y_align"] = ( 
-            [alignment_stationed_df.iloc[n, alignment_stationed_df.columns.get_loc("y_align")]] 
-                                                * len(buffer_point) )      
+            [alignment_stationed_df.iloc[n, alignment_stationed_df.columns.get_loc("y_align")]] * len(buffer_point) )      
         buffer_all[n]["z_align"] = ( 
-            [alignment_stationed_df.iloc[n, alignment_stationed_df.columns.get_loc("z_align")]] 
-                                                * len(buffer_point) )           
+            [alignment_stationed_df.iloc[n, alignment_stationed_df.columns.get_loc("z_align")]] * len(buffer_point) )           
         buffer_all[n]["h"] = ( 
-            [alignment_stationed_df.iloc[n, alignment_stationed_df.columns.get_loc("h")]] 
-                                                * len(buffer_point) )           
+            [alignment_stationed_df.iloc[n, alignment_stationed_df.columns.get_loc("h")]] * len(buffer_point) )           
         buffer_all[n]["x_buffer"] = buffer_point[0:,0]
         buffer_all[n]["y_buffer"] = buffer_point[0:,1]
         buffer_all_df = pd.concat([buffer_all_df, buffer_all[n]])
+        #print(buffer_all_df)
     # add variable "id_buffer_point" to buffer_all_df
     buffer_all_df = buffer_all_df.reset_index(drop=True)
     buffer_all_df["id_buffer_point"] = buffer_all_df.index    
@@ -379,9 +437,12 @@ def hydraulic_confinement():
     buffer_all_df.to_csv(Buffer_all_csv, sep=",", na_rep="NaN")
 
 
+    # In[25]:
+
+
     # add required field "z_dtm_buffer" and calcualted "dist" to buffer_all_df 
     # add required field "slope" to buffer_all_df 
-    # buffer_all_df to Buffer_all_shp
+    # buffer_all_df to Buffer_all_shp                                   #ToDo JK: reuse df -> shp function from above
     # list of shapely geometry points
     buffer_all_geometry = ( 
         [sp.geometry.Point(row['x_buffer'], row['y_buffer']) for key, row in buffer_all_df.iterrows()] )
@@ -389,7 +450,8 @@ def hydraulic_confinement():
     buffer_all_geometry_df = gpd.GeoDataFrame(buffer_all_df, geometry=buffer_all_geometry, crs = crs)
     # write df to Buffer_all_shp
     buffer_all_geometry_df.to_file(Buffer_all_shp, driver='ESRI Shapefile') 
-    # get DTM values for Buffer_all_shp
+    #print(buffer_all_geometry_df.head())
+    # get DTM values for Buffer_all_shp                             #ToDo JK: reuse what.points function from above
     #   write to Buffer_dtm_csv
     processing.runalg("grass7:r.what.points",DTM,Buffer_all_shp, "NA",",", 500,True,False,False,False,False,
                       grass_region,-1,0.0001,Buffer_dtm_csv)
@@ -406,8 +468,7 @@ def hydraulic_confinement():
     buffer_all_df["z_dtm_buffer"] = buffer_dtm_df["z_dtm_buffer"]
     # get slope values for Buffer_all_shp
     #   write to Buffer_slope_csv
-    processing.runalg("grass7:r.what.points",DTM_slope,Buffer_all_shp, "NA",",", 
-                      500,True,False,False,False,False,
+    processing.runalg("grass7:r.what.points",DTM_slope,Buffer_all_shp, "NA",",", 500,True,False,False,False,False,
                       grass_region,-1,0.0001,Buffer_slope_csv)
     # create buffer_dtm_df (dataframe) from Buffer_dtm_csv
     buffer_slope_df = pd.read_csv(Buffer_slope_csv)
@@ -428,13 +489,28 @@ def hydraulic_confinement():
     buffer_all_df = buffer_all_df.drop(columns =["geometry"])
 
 
+    # In[26]:
+
+
+    ##buffer_all_df #checking
+
+
+    # In[27]:
+
+
     # calculate minimum distance to terrain in each buffer ring
+                                                    #ToDo KLK: make check plot of id_buffer_points with "min_dist"
+                                                    #ToDo JK: add station field
     buffer_all_df["min_dist"] = np.nan
     for n in range(0, len(alignment_stationed_df)):
         buffer_all_df_sel = buffer_all_df.loc[(buffer_all_df["id_point"] == n),]
         dist_idxmin=buffer_all_df_sel['dist'].idxmin()
         buffer_all_df.loc[(buffer_all_df["id_buffer_point"] == dist_idxmin), "min_dist"] = "MIN"
     buffer_all_df.to_csv(Buffer_all_csv, header=True, index=False)  #no header
+    ##buffer_all_df.loc[(buffer_all_df["min_dist"] == "MIN"),]  #checking
+
+
+    # In[28]:
 
 
     # calculate hydraulic confinement safety factor at each station point
@@ -457,6 +533,15 @@ def hydraulic_confinement():
     buffer_all_df_sel = buffer_all_df_sel.drop(columns =["x_align", "y_align", "min_dist", "id_buffer_point"])
 
 
+    # In[29]:
+
+
+    ##buffer_all_df_sel  #checking
+
+
+    # In[30]:
+
+
     # calculate hydraulic confinement safety factor at each station point
     #   required input data: reference maximum water pressure elevation (static or dynamic ??) 
     buffer_all_df_sel = buffer_all_df.loc[(buffer_all_df["min_dist"] == "MIN"),]
@@ -472,7 +557,18 @@ def hydraulic_confinement():
     buffer_all_df_sel = buffer_all_df_sel.drop(columns =["x_align", "y_align", "min_dist", "id_buffer_point"])
 
 
-    # initialize variables 
+    # In[31]:
+
+
+    ##buffer_all_df_sel  #checking
+
+
+    # In[32]:
+
+
+    # initialize variables
+    print('starting plotly')
+    
     x_data = []
     y_data = []
     traces = []
@@ -533,8 +629,8 @@ def hydraulic_confinement():
             b=0
         ),
         showlegend=False,
-        ##width=945,
-        ##height=70,
+        ####width=945,
+        ####height=70,
     )
 
     for yd, xd in zip(y_data, x_data):
@@ -549,7 +645,10 @@ def hydraulic_confinement():
     layout['annotations'] = annotations
 
     ##fig = go.Figure(data=traces, layout=layout)
-    ##print(fig)
+
+    print('completed plotly')
+
+    #print(fig)
 
     
     ############################
@@ -574,7 +673,6 @@ def hydraulic_confinement():
     plotJSON = json.dumps(plot, cls=plotly.utils.PlotlyJSONEncoder)
     #print(plotJSON)
 
-    print('completing hydraulic_confinement()')
     
     try:
         #return jsonify(fig)
