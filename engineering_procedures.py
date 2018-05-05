@@ -101,6 +101,43 @@ def test():
 
 def hydraulic_confinement():
 
+    # get request values from Post request from Polymer
+    #test_return = request.values.get('alignment_1').encode('UTF8')  #works, returns string
+    test_return = json.loads(request.values.get('alignment_1'))  #works
+    print('type(test_return): ',type(test_return))  #unicode
+    print('test_return', test_return)  #works
+    #print('test_return: ',test_return[1]['lat'])  #testing - works
+
+    import pyproj as pp    
+    inProj = pp.Proj(init='epsg:4326')  #WGS84
+    outProj = pp.Proj(init='epsg:32648')  #Nam Ang UTM
+    latitudes = []
+    longitudes = []
+    elevations = []
+    eastwest = []
+    for item in test_return:
+        latitudes.append(item['lat'])
+        longitudes.append(item['lng'])
+        elevations.append(item['z'])
+        eastwest.append(pp.transform(inProj, outProj, item['lng'], item['lat']))
+
+    eastings =  [item[0] for item in eastwest]
+    northings =  [item[1] for item in eastwest]
+    eastings = [ round(item, 2) for item in eastings]
+    northings = [ round(item, 2) for item in northings]
+
+    print('latitudes: ',latitudes)
+    print('longitudes: ',longitudes)
+    print('elevations: ',elevations)
+    print('eastwest: ', eastwest)
+    print('eastings: ', eastings)
+    print('northings: ', northings)                       
+
+
+
+
+    
+    
     # set up qgis processing
     app = QApplication([], True)  #True -> window display enabled
     QgsApplication.setPrefixPath("/usr", True)
@@ -108,7 +145,7 @@ def hydraulic_confinement():
     Processing.initialize() 
 
     
-    print('stating hydraulic_confinement()')
+    print('starting hydraulic_confinement()')
 
     # code below is from Jupyter
     ############################
@@ -148,15 +185,25 @@ def hydraulic_confinement():
     Buffer_dtm_csv = "tmp/NamAngBufferDTM.csv"
     Buffer_slope_csv = "tmp/NamAngBufferSlope.csv"
 
-
+    
     alignment = {
         'Station':["0+000","0+163.81","2+063.77","2+603.58","3+030.73"],
         'Northing':[1673035.25,1673051.68,1672130.47,1671662.07,1671268.20],
         'Easting':[726651.46,726815.60,728479.47,728758.97,728581.38],
         'Elevation':[625.850,625.543,504.226,469.758,464.220]
         }
+    print('alignment: ',alignment)
+    
+    alignment = {
+        'Station':["0+000","0+163.81","2+063.77","2+603.58","3+030.73"],
+        'Northing':northings,
+        'Easting':eastings,
+        #'Elevation':elevations
+        'Elevation':[625.850,625.543,504.226,469.758,464.220]        
+        }
+    print('alignment: ',alignment)
 
-
+    
     alignment_df = pd.DataFrame(alignment)
     alignment_df = alignment_df[['Station','Northing','Easting','Elevation']]  #for checking
 
